@@ -133,7 +133,7 @@ def image_preprocess(image, target_size, gt_boxes=None):
         return image_paded, gt_boxes
 
 
-def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_confidence=True, Text_colors=(255,255,0), rectangle_colors='', tracking=False):
+def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_confidence=True, Text_colors=(255,255,0), rectangle_colors='', tracking=False, violationOnly=False):
     NUM_CLASS = read_class_names(CLASSES)
     num_classes = len(NUM_CLASS)
     image_h, image_w, _ = image.shape
@@ -167,7 +167,8 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
         (x1, y1), (x2, y2) = (coor[0], coor[1]), (coor[2], coor[3])
 
         #place detection box(bbox) around pedestrain
-        cv2.rectangle(image, (x1, y1), (x2, y2), bbox_color, bbox_thick*2)
+        if (not violationOnly):
+            cv2.rectangle(image, (x1, y1), (x2, y2), bbox_color, bbox_thick*2)
 
         #compute center/middle btm of detected pedestrain
         x_center = int((x1+x2)/2)
@@ -207,7 +208,11 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
     #and return distribution of distance between people
     dist = compute_distance_modified(transformed_midpoints, len(bboxes))
 
-    p1,p2,d = find_closest(dist,len(bboxes))
+    if (image_h == 1080) & (image_w == 1920):
+        p1,p2,d = find_closest(dist,len(bboxes), 240)
+    else:
+        p1,p2,d = find_closest(dist,len(bboxes), 120)
+
     #df = pd.DataFrame({"p1":p1,"p2":p2,"dist":d})
 
     image = change_2_red(image, bboxes, p1, p2)
@@ -391,7 +396,7 @@ def postprocess_boxes(pred_bbox, original_image, input_size, score_threshold):
     return np.concatenate([coors, scores[:, np.newaxis], classes[:, np.newaxis]], axis=-1)
 
 
-def detect_image(Yolo, image_path, output_path, input_size=416, show=False, CLASSES=YOLO_COCO_CLASSES, score_threshold=0.5, iou_threshold=0.35, rectangle_colors=''):
+def detect_image(Yolo, image_path, output_path, input_size=416, show=False, CLASSES=YOLO_COCO_CLASSES, score_threshold=0.5, iou_threshold=0.35, rectangle_colors='', showConfidence=False, violationOnly=False):
     original_image      = cv2.imread(image_path)
     original_image      = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
     original_image      = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
@@ -415,7 +420,7 @@ def detect_image(Yolo, image_path, output_path, input_size=416, show=False, CLAS
     bboxes = postprocess_boxes(pred_bbox, original_image, input_size, score_threshold)
     bboxes = nms(bboxes, iou_threshold, method='nms')
 
-    image= draw_bbox(original_image, bboxes, CLASSES=CLASSES, rectangle_colors=rectangle_colors)
+    image= draw_bbox(original_image, bboxes, CLASSES=CLASSES, rectangle_colors=rectangle_colors, show_label=showConfidence, violationOnly=violationOnly)
     # CreateXMLfile("XML_Detections", str(int(time.time())), original_image, bboxes, read_class_names(CLASSES))
 
     if output_path != '': cv2.imwrite(output_path, image)
@@ -547,7 +552,7 @@ def detect_video_realtime_mp(video_path, output_path, input_size=416, show=False
 
     cv2.destroyAllWindows()
 
-def detect_video(Yolo, video_path, output_path, input_size=416, show=False, CLASSES=YOLO_COCO_CLASSES, score_threshold=0.5, iou_threshold=0.35, rectangle_colors=''):
+def detect_video(Yolo, video_path, output_path, input_size=416, show=False, CLASSES=YOLO_COCO_CLASSES, score_threshold=0.5, iou_threshold=0.35, rectangle_colors='', showConfidence=False, violationOnly=False):
     times, times_2 = [], []
     vid = cv2.VideoCapture(video_path)
 
@@ -589,7 +594,7 @@ def detect_video(Yolo, video_path, output_path, input_size=416, show=False, CLAS
         bboxes = postprocess_boxes(pred_bbox, original_image, input_size, score_threshold)
         bboxes = nms(bboxes, iou_threshold, method='nms')
 
-        image = draw_bbox(original_image, bboxes, CLASSES=CLASSES, rectangle_colors=rectangle_colors)
+        image = draw_bbox(original_image, bboxes, CLASSES=CLASSES, rectangle_colors=rectangle_colors, show_label=showConfidence, violationOnly=violationOnly)
 
         t3 = time.time()
         times.append(t2-t1)
