@@ -1,3 +1,4 @@
+#16/5/2021 7:57pm
 import sys
 
 from PyQt5.QtCore import *
@@ -6,10 +7,7 @@ from PyQt5.QtWidgets import *
 
 from detection_custom import detectInput
 
-#from fbs_runtime.application_context.PyQt5 import ApplicationContext
-
 class SDVD_GUI(QMainWindow):
-    """View|Window of SDVD_GUI."""
 
     def __init__(self):
         """Initializer"""
@@ -21,7 +19,7 @@ class SDVD_GUI(QMainWindow):
 
         #top level window properties
         self.setWindowTitle("Social Distancing Violation Detector")
-        self.setGeometry(50, 50, 320, 640)
+        self.setGeometry(100, 100, 320, 640)
 
         #init GUI window
         self.window = QWidget()
@@ -110,6 +108,17 @@ class SDVD_GUI(QMainWindow):
             alert = QMessageBox()
             alert.setText("Please select an image or video to analyze")
             alert.exec()
+        elif self.fname.endswith(".mp4") or self.fname.endswith(".avi"):
+            self.status.showMessage("Running Inference...")
+            self.status.setStyleSheet("color : white; background-color : lightgreen; font-weight : bold")
+            qApp.processEvents()
+
+            #Run inference
+            image = detectInput(self.fname, self.saveFname, self.showConfidence, self.showViolationOnly)
+
+            #set status back to ready after inference completed
+            self.status.showMessage("Inference completed.")
+            self.status.setStyleSheet("color : lightgreen")
         else:
             self.status.showMessage("Running Inference...")
             self.status.setStyleSheet("color : white; background-color : lightgreen; font-weight : bold")
@@ -128,9 +137,12 @@ class SDVD_GUI(QMainWindow):
 
     def chkBoxState(self):
         if (self.saveCheckBox.isChecked() == True):
-            splitedFname = self.fname.split("/")
-            splitedFname = splitedFname[-1].split(".")
-            self.saveFname = "./IMAGES/" + str(splitedFname[0]) + "_Analyzed." + str(splitedFname[-1])
+            try:
+                splitedFname = self.fname.split("/")
+                splitedFname = splitedFname[-1].split(".")
+                self.saveFname = "./IMAGES/" + str(splitedFname[0]) + "_Analyzed." + str(splitedFname[-1])
+            except:
+                self.saveFname = "./IMAGES/" + "Analyzed.mp4"
         else:
             self.saveFname = ""
 
@@ -145,7 +157,6 @@ class SDVD_GUI(QMainWindow):
             self.showViolationOnly = False
 
 def main():
-    """Main"""
     # Create an instance of QApplication
     SDVD = QApplication(sys.argv)
     SDVD.setStyle('Fusion')
