@@ -1,3 +1,4 @@
+#Script adapted from:
 #================================================================
 #
 #   File name   : detection_custom.py
@@ -8,6 +9,7 @@
 #   Description : object detection image and video example
 #
 #================================================================
+
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import cv2
@@ -25,10 +27,3 @@ def detectInput(fname, save, showConfidence, violationOnly):
     else:
         yolo = Load_Yolo_model()
         detect_video(yolo, fname, save, input_size=YOLO_INPUT_SIZE, show=True, CLASSES=TRAIN_CLASSES, rectangle_colors=(255,0,0), showConfidence=showConfidence, violationOnly=violationOnly) #BGR
-
-#yolo = Load_Yolo_model()
-#detect_image(yolo, image_path, "", input_size=YOLO_INPUT_SIZE, show=True, CLASSES=TRAIN_CLASSES, rectangle_colors=(255,0,0))
-#detect_video(yolo, video_path, '', input_size=YOLO_INPUT_SIZE, show=True, CLASSES=TRAIN_CLASSES, rectangle_colors=(0,255,0)) #BGR
-#detect_realtime(yolo, '', input_size=YOLO_INPUT_SIZE, show=True, CLASSES=TRAIN_CLASSES, rectangle_colors=(255, 0, 0))
-
-#detect_video_realtime_mp(video_path, "Output.mp4", input_size=YOLO_INPUT_SIZE, show=True, CLASSES=TRAIN_CLASSES, rectangle_colors=(255,0,0), realtime=False)
