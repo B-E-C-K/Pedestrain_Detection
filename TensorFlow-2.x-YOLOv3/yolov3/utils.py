@@ -1,3 +1,4 @@
+#Script adapted from:
 #================================================================
 #
 #   File name   : utils.py
@@ -79,6 +80,7 @@ def load_yolo_weights(model, weights_file):
 
         assert len(wf.read()) == 0, 'failed to read all data'
 
+
 def Load_Yolo_model():
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if len(gpus) > 0:
@@ -110,6 +112,7 @@ def Load_Yolo_model():
         yolo = saved_model_loaded.signatures['serving_default']
 
     return yolo
+
 
 def image_preprocess(image, target_size, gt_boxes=None):
     ih, iw    = target_size
@@ -148,11 +151,12 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
 
     #4 points used for transformation from perspective to bird eye view
     #top left, top right, btm left, btm right
-    list_points = [[590,85],[809,108],[127,362],[495,435]]
+    source_points = [[590,85],[809,108],[127,362],[495,435]]
     #matrix returned to transformed detected coordinates to bird eye view coordinates
-    matrix, image_transformed = compute_perspective_transform(list_points, image_h, image_w,image)
+    ###transform_matrix, image_transformed = compute_perspective_transform(list_points, image_h, image_w, image)
+    transform_matrix = compute_perspective_transform(source_points, image_h, image_w, image)
 
-    #cv2.imshow("Warped", image_transformed)
+    ###cv2.imshow("Warped", image_transformed)
 
     midpoints = []
 
@@ -175,8 +179,8 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
         y_center = int(y2)
 
         #place circle dot at middle btm all bbox
-        #cv2.circle(image, (x_center, y_center), 5, (0, 0, 0), -1)
-        #cv2.putText(image, str(i), (x_center, y_center), cv2.FONT_HERSHEY_SIMPLEX,1, (255, 255, 255), 2, cv2.LINE_AA)
+        ###cv2.circle(image, (x_center, y_center), 5, (0, 0, 0), -1)
+        ###cv2.putText(image, str(i), (x_center, y_center), cv2.FONT_HERSHEY_SIMPLEX,1, (255, 255, 255), 2, cv2.LINE_AA)
 
         midpoints.append((x_center, y_center))
 
@@ -202,7 +206,7 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
             cv2.putText(image, label, (x1, y1-4), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                         fontScale, Text_colors, bbox_thick, lineType=cv2.LINE_AA)
 
-    transformed_midpoints = compute_point_perspective_transformation(matrix, midpoints)
+    transformed_midpoints = compute_point_perspective_transformation(transform_matrix, midpoints)
 
     #Compute distance between all midpoints using transformed coordinates
     #and return distribution of distance between people
@@ -213,22 +217,16 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
     else:
         p1,p2,d = find_closest(dist,len(bboxes), 120)
 
-    #df = pd.DataFrame({"p1":p1,"p2":p2,"dist":d})
+    ###df = pd.DataFrame({"p1":p1,"p2":p2,"dist":d})
 
-    image = change_2_red(image, bboxes, p1, p2)
+    #return image with violation Count and red bboxed for violated person
+    image, violationCount = change_2_red(image, bboxes, p1, p2)
+
+    cv2.putText(image, f"Violation: {violationCount}", (0, image_h-20), cv2.FONT_HERSHEY_COMPLEX_SMALL,
+                fontScale, (0,0,255), bbox_thick, lineType=cv2.LINE_AA)
 
     return image
 
-"""
-def compute_distance(midpoints,num):
-  dist = np.zeros((num,num))
-  for i in range(num):
-    for j in range(i+1,num):
-      if i!=j:
-        dst = distance.euclidean(midpoints[i], midpoints[j])
-        dist[i][j]=dst
-  return dist
-"""
 
 def compute_distance_modified(midpoints,num):
   dist = np.zeros((num,num))
@@ -241,7 +239,8 @@ def compute_distance_modified(midpoints,num):
         dist[i][j]=dst
   return dist
 
-def find_closest(dist,num,thresh=120):
+
+def find_closest(dist, num, thresh=120):
   p1=[]
   p2=[]
   d=[]
@@ -253,7 +252,8 @@ def find_closest(dist,num,thresh=120):
         d.append(dist[i][j])
   return p1,p2,d
 
-def change_2_red(image,bboxes,p1,p2):
+
+def change_2_red(image, bboxes, p1, p2):
   risky = np.unique(p1+p2)
 
   #obtain violated person coordinates in original bboxes to plot
@@ -263,38 +263,35 @@ def change_2_red(image,bboxes,p1,p2):
     (x1, y1), (x2, y2) = (coor[0], coor[1]), (coor[2], coor[3])
     _ = cv2.rectangle(image, (x1, y1), (x2, y2), (0 ,0, 255), 2)
 
-  return image
+  return image, len(risky)
 
-def compute_perspective_transform(corner_points,width,height,image):
-	""" Compute the transformation matrix
-	@ corner_points : 4 corner points selected from the image
-	@ height, width : size of the image
-	return : transformation matrix and the transformed image
-	"""
-	# Create an array out of the 4 corner points
-	corner_points_array = np.float32(corner_points)
+
+def compute_perspective_transform(source_points, width, height,image):
+	# Create an array out of the 4 source(corner) points
+	source_points_array = np.float32(source_points)
 	# Create an array with the parameters (the dimensions) required to build the matrix
-	img_params = np.float32([[0,0],[width,0],[0,height],[width,height]])
+	dest_points = np.float32([[0,0],[width,0],[0,height],[width,height]])
 	# Compute and return the transformation matrix
-	matrix = cv2.getPerspectiveTransform(corner_points_array,img_params)
-	img_transformed = cv2.warpPerspective(image,matrix,(width,height))
+	matrix = cv2.getPerspectiveTransform(source_points_array, dest_points)
+	#img_transformed = cv2.warpPerspective(image, matrix, (width,height))
 
-	return matrix,img_transformed
+    #img_transformed if show warpped image
+    #return matrix, img_transformed
+	return matrix
 
-def compute_point_perspective_transformation(matrix,list_downoids):
-	""" Apply the perspective transformation to every ground point which have been detected on the main frame.
-	@ matrix : the 3x3 matrix
-	@ list_downoids : list that contains the points to transform
-	return : list containing all the new points
-	"""
+
+def compute_point_perspective_transformation(transform_matrix, coordinates):
 	# Compute the new coordinates of our points
-	list_points_to_detect = np.float32(list_downoids).reshape(-1, 1, 2)
-	transformed_points = cv2.perspectiveTransform(list_points_to_detect, matrix)
+	list_coor_to_detect = np.float32(coordinates).reshape(-1, 1, 2)
+	transformed_points = cv2.perspectiveTransform(list_coor_to_detect, transform_matrix)
 	# Loop over the points and add them to the list that will be returned
 	transformed_points_list = list()
+
 	for i in range(0,transformed_points.shape[0]):
 		transformed_points_list.append([transformed_points[i][0][0],transformed_points[i][0][1]])
+
 	return transformed_points_list
+
 
 def bboxes_iou(boxes1, boxes2):
     boxes1 = np.array(boxes1)
@@ -434,123 +431,6 @@ def detect_image(Yolo, image_path, output_path, input_size=416, show=False, CLAS
 
     return image
 
-def Predict_bbox_mp(Frames_data, Predicted_data, Processing_times):
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if len(gpus) > 0:
-        try: tf.config.experimental.set_memory_growth(gpus[0], True)
-        except RuntimeError: print("RuntimeError in tf.config.experimental.list_physical_devices('GPU')")
-    Yolo = Load_Yolo_model()
-    times = []
-    while True:
-        if Frames_data.qsize()>0:
-            image_data = Frames_data.get()
-            t1 = time.time()
-            Processing_times.put(time.time())
-
-            if YOLO_FRAMEWORK == "tf":
-                pred_bbox = Yolo.predict(image_data)
-            elif YOLO_FRAMEWORK == "trt":
-                batched_input = tf.constant(image_data)
-                result = Yolo(batched_input)
-                pred_bbox = []
-                for key, value in result.items():
-                    value = value.numpy()
-                    pred_bbox.append(value)
-
-            pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]
-            pred_bbox = tf.concat(pred_bbox, axis=0)
-
-            Predicted_data.put(pred_bbox)
-
-
-def postprocess_mp(Predicted_data, original_frames, Processed_frames, Processing_times, input_size, CLASSES, score_threshold, iou_threshold, rectangle_colors, realtime):
-    times = []
-    while True:
-        if Predicted_data.qsize()>0:
-            pred_bbox = Predicted_data.get()
-            if realtime:
-                while original_frames.qsize() > 1:
-                    original_image = original_frames.get()
-            else:
-                original_image = original_frames.get()
-
-            bboxes = postprocess_boxes(pred_bbox, original_image, input_size, score_threshold)
-            bboxes = nms(bboxes, iou_threshold, method='nms')
-            image = draw_bbox(original_image, bboxes, CLASSES=CLASSES, rectangle_colors=rectangle_colors)
-            times.append(time.time()-Processing_times.get())
-            times = times[-20:]
-
-            ms = sum(times)/len(times)*1000
-            fps = 1000 / ms
-            image = cv2.putText(image, "Time: {:.1f}FPS".format(fps), (0, 30), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
-            #print("Time: {:.2f}ms, Final FPS: {:.1f}".format(ms, fps))
-
-            Processed_frames.put(image)
-
-def Show_Image_mp(Processed_frames, show, Final_frames):
-    while True:
-        if Processed_frames.qsize()>0:
-            image = Processed_frames.get()
-            Final_frames.put(image)
-            if show:
-                cv2.imshow('output', image)
-                if cv2.waitKey(25) & 0xFF == ord("q"):
-                    cv2.destroyAllWindows()
-                    break
-
-# detect from webcam
-def detect_video_realtime_mp(video_path, output_path, input_size=416, show=False, CLASSES=YOLO_COCO_CLASSES, score_threshold=0.3, iou_threshold=0.45, rectangle_colors='', realtime=False):
-    if realtime:
-        vid = cv2.VideoCapture(0)
-    else:
-        vid = cv2.VideoCapture(video_path)
-
-    # by default VideoCapture returns float instead of int
-    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(vid.get(cv2.CAP_PROP_FPS))
-    codec = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(output_path, codec, fps, (width, height)) # output_path must be .mp4
-    no_of_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    original_frames = Queue()
-    Frames_data = Queue()
-    Predicted_data = Queue()
-    Processed_frames = Queue()
-    Processing_times = Queue()
-    Final_frames = Queue()
-
-    p1 = Process(target=Predict_bbox_mp, args=(Frames_data, Predicted_data, Processing_times))
-    p2 = Process(target=postprocess_mp, args=(Predicted_data, original_frames, Processed_frames, Processing_times, input_size, CLASSES, score_threshold, iou_threshold, rectangle_colors, realtime))
-    p3 = Process(target=Show_Image_mp, args=(Processed_frames, show, Final_frames))
-    p1.start()
-    p2.start()
-    p3.start()
-
-    while True:
-        ret, img = vid.read()
-        if not ret:
-            break
-
-        original_image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-        original_frames.put(original_image)
-
-        image_data = image_preprocess(np.copy(original_image), [input_size, input_size])
-        image_data = image_data[np.newaxis, ...].astype(np.float32)
-        Frames_data.put(image_data)
-
-    while True:
-        if original_frames.qsize() == 0 and Frames_data.qsize() == 0 and Predicted_data.qsize() == 0  and Processed_frames.qsize() == 0  and Processing_times.qsize() == 0 and Final_frames.qsize() == 0:
-            p1.terminate()
-            p2.terminate()
-            p3.terminate()
-            break
-        elif Final_frames.qsize()>0:
-            image = Final_frames.get()
-            if output_path != '': out.write(image)
-
-    cv2.destroyAllWindows()
 
 def detect_video(Yolo, video_path, output_path, input_size=416, show=False, CLASSES=YOLO_COCO_CLASSES, score_threshold=0.5, iou_threshold=0.35, rectangle_colors='', showConfidence=False, violationOnly=False):
     times, times_2 = [], []
@@ -614,70 +494,7 @@ def detect_video(Yolo, video_path, output_path, input_size=416, show=False, CLAS
         if output_path != '': out.write(image)
         if show:
             cv2.imshow('output', image)
-            if cv2.waitKey(25) & 0xFF == ord("q"):
-                cv2.destroyAllWindows()
-                break
-
-    cv2.destroyAllWindows()
-
-# detect from webcam
-def detect_realtime(Yolo, output_path, input_size=416, show=False, CLASSES=YOLO_COCO_CLASSES, score_threshold=0.3, iou_threshold=0.45, rectangle_colors=''):
-    times = []
-    vid = cv2.VideoCapture(0)
-
-    # by default VideoCapture returns float instead of int
-    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(vid.get(cv2.CAP_PROP_FPS))
-    codec = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(output_path, codec, fps, (width, height)) # output_path must be .mp4
-
-    while True:
-        _, frame = vid.read()
-
-        try:
-            original_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            original_frame = cv2.cvtColor(original_frame, cv2.COLOR_BGR2RGB)
-        except:
-            break
-        image_data = image_preprocess(np.copy(original_frame), [input_size, input_size])
-        image_data = image_data[np.newaxis, ...].astype(np.float32)
-
-        t1 = time.time()
-        if YOLO_FRAMEWORK == "tf":
-            pred_bbox = Yolo.predict(image_data)
-        elif YOLO_FRAMEWORK == "trt":
-            batched_input = tf.constant(image_data)
-            result = Yolo(batched_input)
-            pred_bbox = []
-            for key, value in result.items():
-                value = value.numpy()
-                pred_bbox.append(value)
-
-        t2 = time.time()
-
-        pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]
-        pred_bbox = tf.concat(pred_bbox, axis=0)
-
-        bboxes = postprocess_boxes(pred_bbox, original_frame, input_size, score_threshold)
-        bboxes = nms(bboxes, iou_threshold, method='nms')
-
-        times.append(t2-t1)
-        times = times[-20:]
-
-        ms = sum(times)/len(times)*1000
-        fps = 1000 / ms
-
-        print("Time: {:.2f}ms, {:.1f} FPS".format(ms, fps))
-
-        frame = draw_bbox(original_frame, bboxes, CLASSES=CLASSES, rectangle_colors=rectangle_colors)
-        # CreateXMLfile("XML_Detections", str(int(time.time())), original_frame, bboxes, read_class_names(CLASSES))
-        image = cv2.putText(frame, "Time: {:.1f}FPS".format(fps), (0, 30),
-                          cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
-
-        if output_path != '': out.write(frame)
-        if show:
-            cv2.imshow('output', frame)
+            cv2.moveWindow('output',200,200)
             if cv2.waitKey(25) & 0xFF == ord("q"):
                 cv2.destroyAllWindows()
                 break
