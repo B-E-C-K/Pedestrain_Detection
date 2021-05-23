@@ -156,6 +156,8 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
     ###transform_matrix, image_transformed = compute_perspective_transform(list_points, image_h, image_w, image)
     transform_matrix = compute_perspective_transform(source_points, image_h, image_w, image)
 
+    #print(f"Transformation Matrix:\n {transform_matrix}\n")
+
     ###cv2.imshow("Warped", image_transformed)
 
     midpoints = []
@@ -206,7 +208,11 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
             cv2.putText(image, label, (x1, y1-4), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                         fontScale, Text_colors, bbox_thick, lineType=cv2.LINE_AA)
 
+    #print(f"Coordinates before transformation:\n {midpoints}\n")
+
     transformed_midpoints = compute_point_perspective_transformation(transform_matrix, midpoints)
+
+    #print(f"Coordinates after transformation:\n {transformed_midpoints}")
 
     #Compute distance between all midpoints using transformed coordinates
     #and return distribution of distance between people
@@ -217,7 +223,8 @@ def draw_bbox(image, bboxes, CLASSES=YOLO_COCO_CLASSES, show_label=False, show_c
     else:
         p1,p2,d = find_closest(dist,len(bboxes), 120)
 
-    ###df = pd.DataFrame({"p1":p1,"p2":p2,"dist":d})
+    df = pd.DataFrame({"p1":p1,"p2":p2,"dist":d})
+    #print(df)
 
     #return image with violation Count and red bboxed for violated person
     image, violationCount = change_2_red(image, bboxes, p1, p2)
