@@ -131,7 +131,7 @@ def get_mAP(Yolo, dataset, score_threshold=0.25, iou_threshold=0.50, TEST_INPUT_
 
         image_name = ann_dataset[0].split('/')[-1]
         original_image, bbox_data_gt = dataset.parse_annotation(ann_dataset, True)
-        
+
         image = image_preprocess(np.copy(original_image), [TEST_INPUT_SIZE, TEST_INPUT_SIZE])
         image_data = image[np.newaxis, ...].astype(np.float32)
 
@@ -145,11 +145,11 @@ def get_mAP(Yolo, dataset, score_threshold=0.25, iou_threshold=0.50, TEST_INPUT_
             for key, value in result.items():
                 value = value.numpy()
                 pred_bbox.append(value)
-        
+
         t2 = time.time()
-        
+
         times.append(t2-t1)
-        
+
         pred_bbox = [tf.reshape(x, (-1, tf.shape(x)[-1])) for x in pred_bbox]
         pred_bbox = tf.concat(pred_bbox, axis=0)
 
@@ -271,10 +271,10 @@ def get_mAP(Yolo, dataset, score_threshold=0.25, iou_threshold=0.50, TEST_INPUT_
         text = "mAP = {:.3f}%, {:.2f} FPS".format(mAP*100, fps)
         results_file.write(text + "\n")
         print(text)
-        
+
         return mAP*100
 
-if __name__ == '__main__':       
+if __name__ == '__main__':
     if YOLO_FRAMEWORK == "tf": # TensorFlow detection
         if YOLO_TYPE == "yolov4":
             Darknet_weights = YOLO_V4_TINY_WEIGHTS if TRAIN_YOLO_TINY else YOLO_V4_WEIGHTS
@@ -285,9 +285,12 @@ if __name__ == '__main__':
             yolo = Create_Yolo(input_size=YOLO_INPUT_SIZE, CLASSES=YOLO_COCO_CLASSES)
             load_yolo_weights(yolo, Darknet_weights) # use Darknet weights
         else:
+            checkpoint = f"./checkpoints/{TRAIN_MODEL_NAME}"
+            if TRAIN_YOLO_TINY:
+                checkpoint += "_Tiny"
             yolo = Create_Yolo(input_size=YOLO_INPUT_SIZE, CLASSES=TRAIN_CLASSES)
-            yolo.load_weights(f"./checkpoints/{TRAIN_MODEL_NAME}") # use custom weights
-        
+            yolo.load_weights(checkpoint) # use custom weights
+
     elif YOLO_FRAMEWORK == "trt": # TensorRT detection
         saved_model_loaded = tf.saved_model.load(f"./checkpoints/{TRAIN_MODEL_NAME}", tags=[tag_constants.SERVING])
         signature_keys = list(saved_model_loaded.signatures.keys())
